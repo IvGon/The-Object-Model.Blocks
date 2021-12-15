@@ -65,20 +65,7 @@ class Train
       @@trains.push(self)
       register_instance
   end
-
-  #def attr_validate(*args)
-
-    #validates :number, type: String 
-    #validates :number,
-    #        msg: 'is not a valid format.',
-    #        option: proc { |p| p.number =~ NUMBER_FORMAT }
-    #validates :type, type: String
-    #validates :type, 
-    #        msg: 'is not valid type',
-    #        option: proc { |p| ["пассажирский","грузовой"].include? p.type }
-  # obj_valid?("ini")
-  #end
-
+ 
   # --------------------------------------------- количество вагонов в поезде ----------------
   def number_cars                     			     
     @wagons.size
