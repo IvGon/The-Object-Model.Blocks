@@ -37,15 +37,15 @@ require_relative 'interface.rb'
 #********** main ******** main ****** main ******  main *********  main **************
 
 spr_station = Station.all                                    # Справочник станций
-spr_route = Route.all                                        # Справочник маршрутов
-spr_train = Train.all                                        # Справочник поездов
-park_wagon = Wagon.all                                       # Подвижной состав
+spr_route   = Route.all                                      # Справочник маршрутов
+spr_train   = Train.all                                      # Справочник поездов
+park_wagon  = Wagon.all                                      # Подвижной состав
 
-#require_relative 'test_bd'
+
 name_station  = ["Харьков","Белгород","Курск","Орел","Тула","Москва"]
 name_station1 = ["Харьков","Лозовая","Запорожье","Синельниково","Новоалексеевка","Симферополь"]
 number_train  = ["19", "20", "81", "82","67", "68"]
-list_wagons   = [:ПБ, :ПЛ, :КП, :СВ,:РС,:СВ,:КП, :ПЛ, :ПЛ, :ПЛ]
+seats_wagons   = [12, 54, 36, 18,12,12,36, 54, 54, 54]
 
 num_wagon = 12345600
 
@@ -63,31 +63,26 @@ end
 
 route = Route.new("19","Харьков","Москва")                      # Создадим объект Маршрут
 route.station = name_station
-#spr_route << route
 
 route = Route.new("20","Москва","Харьков")                      
 route.station = name_station.reverse
-#spr_route << route
 
 route = Route.new("81","Харьков","Симферополь")                 
 route.station = name_station1
-#spr_route << route
 
 route = Route.new("82","Симферополь","Харьков")                  
 route.station = name_station1.reverse                             
-#spr_route << route
 
 route = Route.new("67","Москва", "Симферополь")                  
 route.station = name_station.reverse + name_station1
 route.station = route.station.uniq                                # удаляет все повторяющиеся элементы 
-#spr_route << route
 
 route = Route.new("68","Симферополь","Москва")                    
 route.station = name_station1.reverse + name_station
 route.station = route.station.uniq
-#spr_route << route
 
 # ----------------------------- Справочник маршрутов поездов -------------------------------------
+puts '------ Справочник маршрутов поездов -------'
 spr_route.each do |route|                                         
 
   print (route.name.ljust  25) + (route.to_s.ljust 27) + "\n"
@@ -104,10 +99,9 @@ puts
 number_train.each do |number|   
   train = PassengerTrain.new(number,10)
   # ---------------------------- Сформируем состав из вагонов ------------------------------------
-  list_wagons.each do |ind|                                 
+  seats_wagons.each do |ind|                                 
     num_wagon += 1 
     wagon = PassengerWagon.new(num_wagon.to_s,ind)
-    #wagon.as_subtype_wagon(ind)
     train.wagons << wagon
     wagon.attach_wagon_to_train(train)
     #park_wagon << wagon
@@ -123,13 +117,14 @@ number_train.each do |number|
 end
 
 # ----------------------------- Справочник станций ----------------------------------------------
-puts
+puts '---- Справочник станций -----'
 spr_station.each do |station|                                 
   print "#{station} #{station.name} \n"
 end
 puts
 
 # ----------------------------- Справочник поездов ----------------------------------------------
+puts '---- Справочник поездов ------'
 spr_train.each do |train|    
 
   print (train.number.ljust  7) + (train.to_s.ljust 34) + (train.route.to_s.ljust 29)
@@ -138,10 +133,11 @@ end
 puts
 
 # ----------------------------- Справочник вагонов ----------------------------------------------
+puts '---- Справочник вагонов -----'
 park_wagon.each do |wagon|     
   
   print "#{(wagon.reg_number.ljust 7)} #{(wagon.type_wagon.ljust 14)} "\
-        "#{(wagon.subtype.ljust 10)} #{(wagon.location.ljust 15)}\n"
+        "#{(wagon.capacity.to_s.center 5)} #{(wagon.loading.to_s.center 5)} #{(wagon.location.ljust 15)}\n"
 end
 puts
 

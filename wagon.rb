@@ -2,13 +2,10 @@
 *************************************************************************************************
 Класс Wagon (Вагон):
     Имеет номер - reg_number, тип  type_wagon (грузовой, пассажирский). 
-    эти данные указываются при создании экземпляра класса.
-    
     Вагоны теперь делятся на грузовые и пассажирские (отдельные классы). 
     К пассажирскому поезду можно прицепить только пассажирские, к грузовому - грузовые. 
     При добавлении вагона к поезду, объект вагона должен передаваться 
-    как аргумент метода и сохраняться во внутреннем массиве поезда, 
-    в отличие от предыдущего задания, где мы считали только кол-во вагонов. 
+    как аргумент метода и сохраняться во внутреннем массиве поезда. 
     Местонахождение поезда location: вагон может находиться в составе поезда либо на станции.
 
 *************************************************************************************************
@@ -21,8 +18,8 @@ class Wagon
   include Manufacturer
   include InstanceCounter
 
-  attr_accessor :location                 #----- местоположение вагона: новый, на станции, в поезде
-  attr_reader :reg_number, :type_wagon    #----- номер и тип вагона
+  attr_accessor :location, :loading                   #----- местоположение вагона: новый, на станции, в поезде
+  attr_reader :reg_number, :type_wagon, :capacity     #----- номер и тип вагона, емкость вагона
 
   NUMBER_WAGON_FORMAT = /^\d{8}$/i
   @@list_wagons = []
@@ -33,15 +30,27 @@ class Wagon
   end
 
 #-------------------------------------------------------------------------------------------------
-  def initialize(reg_number,type_wagon)
-    if validate!(reg_number,type_wagon)
-      @reg_number=reg_number
-      @type_wagon=type_wagon
+  def initialize(reg_number,type_wagon,capacity)
+    if validate!(reg_number,type_wagon,capacity)
+      @reg_number = reg_number
+      @type_wagon = type_wagon
+      @capacity = capacity
+      @loading = 0 
       @location = "NEW"
       @@list_wagons.push(self)
       register_instance
     end
   end
+  #  capacity
+  # Loading weight - Вес загрузки
+  # Loading volume/capacity - Объем загрузки / вместимость
+  # The passenger car is designed with a capacity of 118 persons (seats).
+  # The covered wagon is designed for transportation of general freight with a capacity of 145 m3.
+  # 
+  
+  def free_capacity
+    capacity - loading
+  end 
 
   # ------------------ Прицепить к поезду ---------------------------------------------------------
   def attach_wagon_to_train(train)
@@ -55,12 +64,14 @@ class Wagon
   end
 
   # ------------------ # Назначить тип вагона ----------------------------------------------------
-  def assign_type_wagon(type_wagon)                           
-    assign_type_wagon!(type_wagon) if type_wagon.nil?
+  def assign_type_wagon(type)                           
+    raise "Не верный тип вагона!" unless ["пассажирский", "грузовой"].include?(type)
+    assign_type_wagon!(type)
   end
 
   def valid?
-    validate!(@reg_number, @type_wagon)
+    validate!(@reg_number,@type_wagon,@capacity)
+    true
   rescue
     false
   end
@@ -70,12 +81,8 @@ class Wagon
     attr_writer :type_wagon
     attr_writer :manufacturer
 
-    def assign_type_wagon!(type_wagon)
-
-      h_wagon_type = { :pass => "пассажирский", :cargo => "грузовой"} 
-      
-      initial_type = h_wagon_type[type_wagon]
-      self.type_wagon = initial_type
+    def assign_type_wagon!(type)
+      self.type_wagon = type
     end
 
     def validate!(*args)
@@ -83,6 +90,7 @@ class Wagon
       raise "Длина номера должна быть 8 цифр" if args[0].to_s.length != 8
       raise "Не верный формат номера!" if args[0] !~ NUMBER_WAGON_FORMAT
       raise "Не верный тип вагона!" unless ["пассажирский", "грузовой"].include?(args[1])
+      raise "Емкость вагона не может быть отрицательной!" if args[2] < 0
       rescue StandardError => e
         puts "e.message " + e.message
         false

@@ -76,8 +76,8 @@ class Route
     puts "Начальная станция   - #{@station[0]}"               # начальная станция
     puts "Конечная станция    - #{@station[-1]}"              # конечная станция
     print "Состав маршрута     "
-    @station.each { |name_st| print "- #{name_st}" }          # список станций на маршруте
-    puts ">"
+    #@station.each { |name_st| print "- #{name_st}" }          # список станций на маршруте
+    show_stations
   end
 
   def valid?

@@ -34,17 +34,24 @@ class Train
   attr_accessor :speed, :curent_station         # возвращать текущую станцию и скорость
   
   attr_reader :condition                        # местонахождение поезда: в пути/на станции
-  attr_reader :number_cars, :num_of_cars		                  # возвращать количество вагонов
+  attr_reader :number_cars, :num_of_cars		    # возвращать количество вагонов
   attr_reader :wagons                           # подвижной состав поезда
 
 
+  NUMBER_FORMAT = /^\d{3}-?[а-яА-Я]{2}$/i
   @@trains = []
 
-  NUMBER_FORMAT = /^\d{3}-?[а-яА-Я]{2}$/i
-#------------------------------------ список Obj поездов ------------------------------------------------
+  #------------------------------------ список Obj поездов ------------------------------------------------
   def self.all
     @@trains 
   end
+
+  # --------------------------------------------- поиск Obj поезда по номеру ----------------
+  def find(number)
+    @@trains.find{|train| train.number == number}
+  end
+
+  # ------------------------------------------------------
 
   def initialize(number, type, num_of_cars)
       #validate!(number)
@@ -77,13 +84,7 @@ class Train
     @wagons.size
   end
  
- # --------------------------------------------- поиск Obj поезда по номеру ----------------
-  def find(number)
-    @@trains.find{|train| train.number == number}
-  end
-
-
-  # --------------------------------------------- назначить поезду маршрут ----------------
+ # --------------------------------------------- назначить поезду маршрут ----------------
   def assign_train_route(assign_route) 	           
     @route = assign_route
     @curent_station = @route.station[0]
@@ -94,7 +95,7 @@ class Train
   end
   
   def route_name
-    @route.route_name
+    @route.name
   end
 
   # -------------------------------------------- Возвращать положение на маршруте --------
@@ -113,32 +114,30 @@ class Train
 # -------------------------------- перемещаться между станциями, указанными в маршруте ----
   
   # ----------------------------- поезд вперед на 1 станцию по маршруту -------------------
-  def train_forward
+  def train_forward(departure_station)
       
-      if @current_station != @route.stations[-1]
+      if @current_station != route.station[-1]
         speed=60
-        @current_station.train_departure(self) 
         @prev_station = @curent_station
+        departure_station.train_departure(self) 
         @curent_station = @next_station
         ind = route.station.index(@curent_station).to_i + 1
         @next_station = route.station[ind]
-        @current_station.train_arrival(self)
       else
         puts "Поезд уже находится в пункте назначения!" 
       end
   end
 
-  def train_forward_back
+  def train_back(departure_station)
     speed=60
-    if @current_station != @route.stations[0]
-      @current_station.train_departure(self) 
-      
-      @next_station = @curent_station
-      @curent_station = @prev_station
-      ind = route.station.index(@curent_station).to_i - 1
-      @prev_station = route.station[ind]
-      
-      @current_station.add_train(self)
+    if @current_station != @route.station[0]
+      @curent_station = @prev_station 
+    #  @prev_station = @curent_station
+      departure_station.train_arrival(self) 
+    #  @next_station = @curent_station
+      ind = route.station.index(@curent_station).to_i
+      @prev_station = route.station[ind+1]
+      @next_station = route.station[ind+1]
     else
       puts "Поезд уже находится в пункте отправления!" 
       end
@@ -191,55 +190,45 @@ class Train
     puts "Предыдущая станция  - #{@prev_station}"       # предыдущая станция
     puts "Следующая станция   - #{@next_station}"       # следующая станция 
     puts "Состав поезда       - "                       # подвижной состав поезда
-    wagons_on_train
-#    wagons.each_with_index { |wagon,i|  print "#{(i+1).to_s.rjust 5}  #{(wagon.reg_number.ljust 7)}  "\
-#                                              "#{(wagon.type_wagon.ljust 14)} "\
-#                                              "#{(wagon.location.center 15)}\n" }
+    block = proc { |wagon,i|  print "#{(i+1).to_s.rjust 5}  #{(wagon.reg_number.ljust 7)}  "\
+                                    "#{(wagon.type_wagon.ljust 14)} #{(wagon.location.center 15)}\n" }
+    wagons_on_train( &block )
   end
 
   # -------------------------------------------------------------------------------------------
   
-  def wagons_on_train
+  def wagons_on_train(&block)
 
     raise 'Состав поезда не сформирован!' if @wagons.empty?
-    print "Поезд № #{(self.number.center 15)} \n "\
-          "#{("№".center 5)} #{("Вид".center 14)} "\
-          "#{("Тип вагона".center 14)} #{("Рег.номер".center 10)} \n" 
-   
-    wagons.each_with_index { |wagon,i|  print "#{(i+1).to_s.center 5} #{wagon.subtype.center 14} "\
-                                              "#{wagon.type_wagon.ljust 14} #{wagon.reg_number.ljust 10} \n" }
+    
+    wagons.each_with_index(&block)
     rescue StandardError => e
-      puts e.message
+       puts e.message
   end
   
 
   # ------------------------------ прицепить вагон к поезду -----------------------------------
 
   def add_car(car)                          #car+  - прицепить вагон к поезду
-    if speed == 0 
-      if (car.type_wagon == @type)
-        @num_of_cars += 1
-        wagons << car
-        return true
-      else
-        puts "тип вагона не соответствует типу поезда!" 
-        return false
-      end
-    else
-      puts "Остановите поезд!"
+    raise 'Невозможно прицепить вагон! Остановите поезд!' unless speed.zero?
+    raise 'Тип вагона не соответствует типу поезда!' unless car.type_wagon == @type
+    @num_of_cars += 1
+    wagons << car
+    rescue StandardError => e
+      puts e.message  
       return false
-    end   
   end
 
   # ------------------------------ отцепить вагон поезда -----------------------------------
 
   def del_car(car)                          #car-   - отцепить вагон поезда
-    if wagons.include?(car)
-      @num_of_cars -= 1 if @speed == 0
-      wagons.each { |item| wagons.delete(item) if item == car }
-    else
-      puts "нет такого вагона #{car.reg_number} в поезде!"   
-    end
+    raise 'Невозможно отцепить вагон! Остановите поезд!' unless speed.zero?
+    raise 'Нет такого вагона #{car.reg_number} в поезде!' unless wagons.include?(car)
+    @num_of_cars -= 1 
+    wagons.each { |item| wagons.delete(item) if item == car }
+    rescue StandardError => e
+      puts e.message  
+      return false
   end
 
   def validate!(number)

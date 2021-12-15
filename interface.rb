@@ -19,7 +19,7 @@ class Interface
 
    train = spr_train[0]
    station = spr_station.find { |item| item.name == "Харьков"} 
-   route = train.route
+   route = train.route unless train.nil?
    cmd = "cmd"
 
    until cmd == "stop" do
@@ -28,10 +28,13 @@ class Interface
     # --------------------- Просмотр справочников стаций, маршрутов, поездов --------------------------------- 
 
     when "wg ls"              # справочник вагонов
-      print "#{"№".center 7} #{"Тип вагона".center 14} #{"Вид".center 14} #{"Локация".center 15} #{"Obj".center 25}\n" 
-   
+      print "#{"№".center 7} #{"Тип вагона".center 14} #{("Всего".center 6)} #{("Занято".center 6)} "\
+            "#{("Свободно".center 6)} #{"Локация".center 15} #{"Obj".center 25}\n" 
+
+     
       Wagon.all.each { |wagon| print "#{(wagon.reg_number.center 7)} #{(wagon.type_wagon.ljust 14)} "\
-                                      "#{(wagon.subtype.center 14)} #{(wagon.location.center 15)} #{wagon.to_s}\n"}               
+                                      "#{(wagon.capacity.to_s.center 6)} #{(wagon.loading.to_s.center 6)} "\
+                                      "#{(wagon.location.center 15)} #{wagon.to_s}\n"}               
       puts  
 
     when "tr ls"              # ---------------------------------------- справочник поездов
@@ -48,6 +51,21 @@ class Interface
         end
         print "#{ (train.train_curent_station.to_s.center 15) } "\
               "#{ (train.num_of_cars.to_s.center 7) } #{ (train.to_s.center 32) } \n" 
+      end
+
+    when "tr all"
+
+      tr_block = proc { |tr| puts "Поезд № #{tr.number}  #{tr.type} #{tr.num_of_cars}" }
+      wg_block = proc { |w,i|  puts "#{(i+1).to_s.rjust 12} #{w.reg_number}  #{w.type_wagon} #{w.capacity} #{w.loading}" }
+      
+      Station.all.each do |station| 
+        puts "Станция - #{station.name} \n" 
+        
+        station.trains.each do |train| 
+          tr_block.call(train)
+          
+          train.wagons_on_train(&wg_block)
+        end
       end
 
     when "st ls"              # ---------------------------------------- справочник станций
@@ -81,7 +99,6 @@ class Interface
         retry if gets.chomp.to_i == 1
       else
         puts "Станция #{name_st} успешно создана!"
-        puts st_obj
       end
 
     when "station-"   # ---------------- создать новую станцию и внести в справочник станций
@@ -89,9 +106,9 @@ class Interface
         print "Название станци: "
         name_st = gets.chomp.to_s
         st_obj = spr_station.find { |item| item.name == name_st} 
-        puts st_obj
         raise "Нет такой станции   #{name_st}!" if st_obj.nil?
         spr_station.delete(st_obj)
+      
       rescue StandardError => e
         puts e.message
         print "Продолжить ввод (0 - нет, 1 - да): "
@@ -219,12 +236,21 @@ class Interface
       begin
         print "Номер вагона: "
         num_wagon = gets.chomp.to_s
+        
         print "Тип вагона: (0 - грузовой, 1 - пассажирский): "
         type = gets.chomp.to_i
         raise "Недопустимый выбор: (0,1) !" unless [0,1].include?(type)
-      
-        wagon = PassengerWagon.new(num_wagon) if type == 1
-        wagon = CargoWagon.new(num_wagon) if type == 0
+        
+        if type == 1 
+          print "Количество мест в вагоне: "
+          capacity = gets.chomp.to_i
+          wagon = PassengerWagon.new(num_wagon,capacity)
+        else
+          print "Емкость вагона: "
+          capacity = gets.chomp.to_f
+          wagon = CargoWagon.new(num_wagon,capacity) 
+        end
+
         raise "Вагон не создан!" if wagon.nil?
         rescue StandardError => e
           puts e.message
@@ -242,7 +268,7 @@ class Interface
         next_car = park_wagon.find { |item| item.reg_number == num_wagon} 
         raise "Нет такого вагона #{num_wagon}!" if next_car.nil?
       
-      rescue StandardError => e
+        rescue StandardError => e
           puts e.message
           print "Продолжить ввод (0 - нет, 1 - да): "
           retry if gets.chomp.to_i == 1
@@ -293,10 +319,12 @@ class Interface
       end
   
     when "tr next"   # ----------------------------- поезд вперед на 1 станцию по маршруту ------
-      train.train_forward
+      st_obj = spr_station.find { |item| item.name == train.curent_station }
+      train.train_forward(st_obj) unless st_obj.nil?
       
     when "tr prev"   # ----------------------------- поезд назад на 1 станцию по маршруту --------
-      train_forward_back
+      st_obj = spr_station.find { |item| item.name == train.curent_station }
+      train.train_back(st_obj) unless st_obj.nil?
  
     # -------------------------------------------- Движение поездов по станции ---------------------   
     
@@ -308,27 +336,17 @@ class Interface
         train_obj = spr_train.find { |item| item.number == num_train} 
         raise "Нет такого поезда!" if train_obj.nil?
       
-        print "Вид вагона (СВ - 0, КП - 1, ПЛ - 2,  РС - 3, ПБ - 4): "
-        num = gets.chomp.to_i
-        raise "Вид вагона должен быть - [0 .. 4]!" unless (0..4).include? num
-          #type = subtype[num]
         rescue  => e
             puts "#{e.class}: #{e.message}"
             print "Продолжить ввод (0 - нет, 1 - да): "
             retry if gets.chomp.to_i == 1
-#      end
-    else
-      train_obj.wagons.each_with_index do |wagon, i| 
-        if wagon.subtype == ["мягкий","купейный","плакартный"][num]
-            ( offer_num ||= []) << i+1
-            print "#{(i+1).to_s.center 5} #{(wagon.subtype.ljust 14)} #{(wagon.total_seats.to_s.center 6)} "\
-                  "#{(wagon.occupied_seats.to_s.center 6)} #{(wagon.free_seats.to_s.center 6)} \n" 
-        end
-      end   
+        else
+        train_obj.wagons_on_train 
+        max = train_obj.num_of_cars
       begin 
         print "Выберите номер вагона: "
         num = gets.chomp.to_i
-        raise "Не верный № вагона! Должен быть - #{offer_num.to_s}!" unless offer_num.include? num
+        raise "Не верный № вагона! Должен быть: 1-#{max.to_s}!" unless (1..max).include? num
         rescue  => e
             puts "#{e.class}: #{e.message}"
             print "Продолжить ввод (0 - нет, 1 - да): "
@@ -337,8 +355,6 @@ class Interface
     
       train_obj.wagons[num-1].take_a_seat    
     end
-      # [:СВ,:КП,:ПЛ]
-      #"мягкий","купейный","плакартный" 
 
     when "ticket-" # <------------------------------- вернуть билет на поезд" --------------------
       begin
@@ -347,28 +363,18 @@ class Interface
         train_obj = spr_train.find { |item| item.number == num_train} 
         raise "Нет такого поезда!" if train_obj.nil?
 
-        print "Вид вагона (СВ - 0, КП - 1, ПЛ - 2,  РС - 3, ПБ - 4): "
-        num = gets.chomp.to_i
-        raise "Вид вагона должен быть - [0 .. 4]!" unless (0..4).include? num
-          #type = subtype[num]
         rescue  => e
             puts "#{e.class}: #{e.message}"
             print "Продолжить ввод (0 - нет, 1 - да): "
             retry if gets.chomp.to_i == 1
-#      end
-    else
-      train_obj.wagons.each_with_index do |wagon, i| 
-          if wagon.subtype == ["мягкий","купейный","плакартный"][num]
-            ( offer_num ||= []) << i+1
-            print "#{(i+1).to_s.center 5} #{(wagon.subtype.ljust 14)} #{(wagon.total_seats.to_s.center 6)} "\
-                  "#{(wagon.occupied_seats.to_s.center 6)} #{(wagon.free_seats.to_s.center 6)} \n" 
-          end
-      end            
+        else
+          train_obj.wagons_on_train 
+          max = train_obj.num_of_cars           
 
       begin 
         print "Выберите номер вагона: "
         num = gets.chomp.to_i
-        raise "Не верный № вагона! Должен быть - #{offer_num.to_s}!" unless offer_num.include? num
+        raise "Не верный № вагона! Должен быть: 1-#{max.to_s}!" unless (1..max).include? num
         rescue  => e
             puts "#{e.class}: #{e.message}"
             print "Продолжить ввод (0 - нет, 1 - да): "
@@ -383,10 +389,6 @@ class Interface
         num_train = gets.chomp.to_s
         train_obj = spr_train.find { |item| item.number == num_train} 
 
-        print "Вид вагона (КВ - 0, ПЛ - 1, ПВ - 2,  ЦС - 3, ТС - 4): "
-        num = gets.chomp.to_i
-        raise "Вид вагона должен быть - [0 .. 4]!" unless (0..4).include? num
-          #type = subtype[num]
         print "Введите объем груза: "
         volume = gets.chomp.to_i
         raise "Объем груза не должен быть < 0 !" if volume < 0
@@ -394,28 +396,21 @@ class Interface
             puts "#{e.class}: #{e.message}"
             print "Продолжить ввод (0 - нет, 1 - да): "
             retry if gets.chomp.to_i == 1
-#      end
-    else
-      train_obj.wagons.each_with_index do |wagon, i| 
-          if wagon.subtype == ["крытый","платформа","полувагон","цистерна","рефрижератор"][num]
-            ( offer_num ||= []) << i+1
-            print "#{(i+1).to_s.center 5} #{(wagon.subtype.ljust 14)} #{(wagon.full_volume.to_s.ljust 6)}  "\
-                  "#{(wagon.occupied_volume.to_s.ljust 6)} #{(wagon.free_volume.to_s.ljust 6)} \n" 
-          end
-      end            
+        else
+          train_obj.wagons_on_train 
+          max = train_obj.num_of_cars           
 
-      begin 
-        print "Выберите номер вагона: "
-        num = gets.chomp.to_i
-        raise "Не верный № вагона! Должен быть - #{offer_num.to_s}!" unless offer_num.include? num
+        begin 
+          print "Выберите номер вагона: "
+          num = gets.chomp.to_i
+          raise "Не верный № вагона! Должен быть: 1-#{max.to_s}!" unless (1..max).include? num
         rescue  => e
             puts "#{e.class}: #{e.message}"
             print "Продолжить ввод (0 - нет, 1 - да): "
             retry if gets.chomp.to_i == 1
-      end
+        end
       train_obj.wagons[num-1].take_volume(volume) 
     end  
-      #"крытый","платформа","полувагон","цистерна","рефрижератор"
 
     when "cargo-" # <------------------------------- раагрузить вагон поезда --------------------
       begin
@@ -423,11 +418,6 @@ class Interface
         num_train = gets.chomp.to_s
         train_obj = spr_train.find { |item| item.number == num_train} 
 
-        print "Вид вагона (КВ - 0, ПЛ - 1, ПВ - 2,  ЦС - 3, ТС - 4): "
-        num = gets.chomp.to_i
-        raise "Вид вагона должен быть - [0 .. 4]!" unless (0..4).include? num
-          #type = subtype[num]
-        
         print "Введите объем груза: "
         volume = gets.chomp.to_i
         raise "Объем груза не должен быть < 0 !" if volume < 0
@@ -435,28 +425,21 @@ class Interface
             puts "#{e.class}: #{e.message}"
             print "Продолжить ввод (0 - нет, 1 - да): "
             retry if gets.chomp.to_i == 1
-#      end
-    else
-      train_obj.wagons.each_with_index do |wagon, i| 
-          if wagon.subtype == ["крытый","платформа","полувагон","цистерна","рефрижератор"][num]
-          ( offer_num ||= []) << i+1
-            print "#{(i+1).to_s.center 5} #{(wagon.subtype.ljust 14)} #{(wagon.full_volume.to_s.ljust 6)}  "\
-                  "#{(wagon.occupied_volume.to_s.ljust 6)} #{(wagon.free_volume.to_s.ljust 6)} \n" 
-          end
-      end            
+        else
+          train_obj.wagons_on_train 
+          max = train_obj.num_of_cars  
 
-      begin 
-        print "Выберите номер вагона: "
-        num = gets.chomp.to_i
-        raise "Не верный № вагона! Должен быть - #{offer_num.to_s}!" unless offer_num.include? num
-        rescue  => e
+        begin 
+          print "Выберите номер вагона: "
+          num = gets.chomp.to_i
+          raise "Не верный № вагона! Должен быть: 1-#{max.to_s}!" unless (1..max).include? num
+          rescue  => e
             puts "#{e.class}: #{e.message}"
             print "Продолжить ввод (0 - нет, 1 - да): "
             retry if gets.chomp.to_i == 1
-      end
+        end
       train_obj.wagons[num-1].unload_volume(volume) 
     end  
-
 
     when "st in"  # <------------------------------- принять поезд на станцию -------------------
 
@@ -472,14 +455,12 @@ class Interface
           train_obj.speed = 0
 
           st_obj = spr_station.find { |item| item.name == next_station} 
-           # ----- добавить поезд на станцию    
           st_obj.train_arrival(train_obj) 
         end
       end
 
     when "st out"   # <------------------------------ отправить поезд со станции по маршруту -------------------
 
-      # <------------------------- найти поезд по номерув в справочнике поездов
       print "Отправить со станции поезд № : "
       num_train = gets.chomp.to_s
       train_obj = spr_train.detect { |item| item.number == num_train}  
@@ -513,7 +494,12 @@ class Interface
       if st_obj.nil?
         puts "Нет такой станции  #{st_obj.name}!"
       else
-        st_obj.list_of_trains(type_train)
+    #    st_obj.list_of_trains(type_train)
+    # - Номер поезда, тип, кол-во вагонов
+          block = proc do |tr| 
+            puts "#{tr.number}  #{tr.type} #{tr.num_of_cars}" if tr.type == type_train
+          end
+          st_obj.list_of_trains_on_station(name_station,&block)
       end
 
     # -------------------------- Скорость движения поезда -------------------------    
@@ -544,6 +530,7 @@ class Interface
       puts "tr ls     - справочник поездов"
       puts "st ls     - справочник станций"
       puts "rt ls     - справочник маршрутов"
+      puts "tr all    - справочник поездов по станциям"
       puts "------- Формирование маршрута поезда ------------------"
       puts "station+  - создать станцию"
       puts "station-  - удалить станцию"
@@ -567,8 +554,8 @@ class Interface
       puts "st out    - отправить поезд со станции по маршруту"
       puts "st show   - показать список поездов на станции"
       puts "------- Движение поезда по  маршруту ------------------"
-      puts "tr next   - поезд вперед на 1 станцию по маршруту"
-      puts "tr prev   - поезд назад на 1 станцию по маршруту"
+#      puts "tr next   - поезд вперед на 1 станцию по маршруту"
+#      puts "tr prev   - поезд назад на 1 станцию по маршруту"
       puts "tr up     - набрать скорость"
       puts "tr down   - тормозить (сбрасывать скорость до нуля)"
       puts "speed     - возвратить текущую скорость" 

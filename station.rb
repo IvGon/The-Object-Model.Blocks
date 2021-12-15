@@ -73,6 +73,12 @@ class Station
     @errors
   end
 # -------------------------------------------------------------------------------------------------------
+
+ def info(&block)
+    raise "На станции #{self} нет поездов!" unless trains.any?
+
+    trains.each(&block)
+  end
   
 # --------------------------------- прибытие поезда на станцию -------------------------------------------
   def train_arrival(train)   
@@ -119,11 +125,16 @@ class Station
     rescue StandardError => e
       puts e.message
   end
-  
+
 # ---------------------------------- возвращает список поездов на станции по типу -------------------------
-  #возвращает список поездов на станции по типу
-  def list_of_trains_by_type(type)
-    trains.select{ |train| train.type == type }.size
+  def list_of_trains_on_station(name,&block)
+
+    station = Station.all.find { |item| item.name == name}
+    raise 'На станции #{station} нет поездов!' if station.trains.empty?
+    station.trains.each(&block)
+
+    rescue StandardError => e
+       puts e.message
   end
 
 # ----------------------------------------------------------------------------------------------------------
